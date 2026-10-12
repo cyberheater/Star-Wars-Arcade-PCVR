@@ -1,6 +1,6 @@
-# Star Wars 1983 Arcade PCVR and Quest port
+# Star Wars Arcade PCVR
 
-**Star Wars** (Atari, 1983) **in a VR headset**: you sit in the cockpit, the
+**Star Wars** (Atari, 1983) **in a PC VR headset**: you sit in the cockpit, the
 TIE fighters, towers, trench and Death Star are drawn in 3-D around you, and a
 Touch controller is your flight stick. It is the arcade game itself, not a
 remake: Atari's program translated to C from the ROMs, with every vector it
@@ -8,15 +8,17 @@ draws placed where the game's own arithmetic put it in space.
 
 | | |
 |---|---|
-| **Meta Quest, on its own** (2, 3, 3S, Pro) | `StarWarsQuest.apk`, a native app: no PC or cable once it is installed |
 | **PC VR** (Windows; a Quest over Quest Link, Air Link or Virtual Desktop) | `sw_xr.exe`, in `StarWarsVR-win64.zip` |
 | **No headset** | `sw_sdl.exe`, in the same zip: the game in a window |
 
-**[Download the latest release](https://github.com/cyberheater/Star-Wars-Full-Disassembly-and-C-Port/releases/latest)**
+**[Download the latest release](https://github.com/cyberheater/Star-Wars-Arcade-PCVR/releases/latest)**
 &nbsp;·&nbsp; **[Install and play, step by step](docs/VR.md)**
 
 **No ROM data is included.** You need your own MAME `starwars` ROM set; the
 guide shows how to make the game's images from it.
+
+For a Quest by itself, with no PC, there is a separate app:
+[Quest SWVR](https://github.com/cyberheater/Quest-SWVR).
 
 - Flight stick in your hand: push forward to dive, pull back to climb. Triggers
   fire. Left-handed play is one button press.
@@ -25,7 +27,7 @@ guide shows how to make the game's images from it.
 - The sight sits out in space where the lasers meet, not on a flat screen.
 
 The VR source is [`c_src/platform/openxr/plat_openxr.cpp`](c_src/platform/openxr/plat_openxr.cpp)
-(one file for both the PC and the Quest) on top of the 3-D tap,
+on top of the 3-D tap,
 [`c_src/sw3d.c`](c_src/sw3d.c). Everything below is the project it is built
 on.
 

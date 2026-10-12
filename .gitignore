@@ -48,6 +48,3 @@ c_src/sw_sdl
 c_src/*.dll
 c_src/sw_sdl.ini
 c_src/sw_xr.ini
-c_src/build-quest/
-*.apk
-*.idsig
