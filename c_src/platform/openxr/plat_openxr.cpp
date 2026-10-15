@@ -1139,6 +1139,7 @@ static struct {
     int fire_r = 1, thumb_r = 2, fire_l = 3, thumb_l = 4, centre = 5, coin = 9, menu = 10;
     int axis_x = 1, axis_y = 2, invert = 0;
     int rest_x, rest_y;                 /* the stick at rest, raw: taken at the start and on Centre */
+    int lo_x = 0, hi_x = 0, lo_y = 0, hi_y = 0;   /* the furthest each way it has been, raw */
     double deadzone = 0.04;
     std::string name = "T.Flight";      /* a game controller with this in its name is taken as a flight stick */
 } hotas;
@@ -1158,6 +1159,8 @@ static void stick_open(int index)
         SDL_JoystickUpdate();
         hotas.rest_x = hotas.axis_x > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_x - 1) : 0;
         hotas.rest_y = hotas.axis_y > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_y - 1) : 0;
+        hotas.lo_x = hotas.hi_x = hotas.rest_x;
+        hotas.lo_y = hotas.hi_y = hotas.rest_y;
     }
     if (stick)
         logf("[hotas] %s: %d axes, %d buttons, %d hats", SDL_JoystickName(stick), SDL_JoystickNumAxes(stick),
@@ -1238,12 +1241,21 @@ static void pump_events(void)
 #endif
 static int stick_button(int n) { return stick && n > 0 && SDL_JoystickGetButton(stick, n - 1); }
 
-/* an axis, -1 .. 1 from where it rests, with its dead zone */
-static double stick_axis(int n, int rest)
+/* an axis, -1 .. 1 from where it rests, with its dead zone.  Each side is
+ * scaled to the furthest the stick has gone that way: a stick whose centre is
+ * not the middle of its range (a T.Flight's left and right can be) still
+ * reaches both ends.  Until it has been pushed all the way, a side is taken to
+ * be 60% of the shorter one the range leaves. */
+static double stick_axis(int n, int rest, int &lo, int &hi)
 {
     if (!stick || n < 1) return 0.0;
     const int raw = SDL_JoystickGetAxis(stick, n - 1);
-    double v = raw >= rest ? (raw - rest) / (double)std::max(1, 32767 - rest) : (raw - rest) / (double)std::max(1, 32768 + rest);
+    lo = std::min(lo, raw);
+    hi = std::max(hi, raw);
+    const double guess = 0.6 * std::min(32767 - rest, 32768 + rest);
+    const double up = std::max((double)(hi - rest), guess), down = std::max((double)(rest - lo), guess);
+    double v = raw >= rest ? (raw - rest) / std::max(1.0, up) : (raw - rest) / std::max(1.0, down);
+    v = std::max(-1.0, std::min(1.0, v));
     if (fabs(v) < hotas.deadzone) return 0.0;
     return (v - (v > 0 ? hotas.deadzone : -hotas.deadzone)) / (1.0 - hotas.deadzone);
 }
@@ -1410,8 +1422,8 @@ void plat_input_poll(plat_inputs *in)
     /* the flight stick: pulled back is the sight up, as a pilot climbs */
     if (stick) {
         if (!slider_open) {
-            x += stick_axis(hotas.axis_x, hotas.rest_x) * 127.0;
-            y += stick_axis(hotas.axis_y, hotas.rest_y) * 127.0 * (hotas.invert ? -1.0 : 1.0);
+            x += stick_axis(hotas.axis_x, hotas.rest_x, hotas.lo_x, hotas.hi_x) * 127.0;
+            y += stick_axis(hotas.axis_y, hotas.rest_y, hotas.lo_y, hotas.hi_y) * 127.0 * (hotas.invert ? -1.0 : 1.0);
         }
         if (stick_button(hotas.fire_r)) in->fire_r = 1;
         if (stick_button(hotas.fire_l)) in->fire_l = 1;
