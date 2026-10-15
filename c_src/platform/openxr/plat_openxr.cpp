@@ -1143,6 +1143,7 @@ static struct {
     int rest_x, rest_y;                 /* the stick at rest, raw: taken at the start and on Centre */
     int lo_x = 0, hi_x = 0, lo_y = 0, hi_y = 0;   /* the furthest each way it has been, raw */
     double deadzone = 0.04;
+    double curve = 0.6;                 /* the response: 1 straight, below 1 quicker off the centre */
     std::string name = "T.Flight";      /* a game controller with this in its name is taken as a flight stick */
 } hotas;
 
@@ -1259,7 +1260,9 @@ static double stick_axis(int n, int rest, int &lo, int &hi)
     double v = raw >= rest ? (raw - rest) / std::max(1.0, up) : (raw - rest) / std::max(1.0, down);
     v = std::max(-1.0, std::min(1.0, v));
     if (fabs(v) < hotas.deadzone) return 0.0;
-    return (v - (v > 0 ? hotas.deadzone : -hotas.deadzone)) / (1.0 - hotas.deadzone);
+    v = (v - (v > 0 ? hotas.deadzone : -hotas.deadzone)) / (1.0 - hotas.deadzone);
+    /* the response: below 1, small moves near the centre go further */
+    return v < 0 ? -pow(-v, hotas.curve) : pow(v, hotas.curve);
 }
 
 static void hotas_read(void)
@@ -1704,6 +1707,7 @@ static void settings_load(void)
     hotas.axis_y = ini_int("hotas", "axis_y", hotas.axis_y);
     hotas.invert = ini_int("hotas", "invert_pitch", hotas.invert);
     hotas.deadzone = ini_dbl("hotas", "deadzone", hotas.deadzone);
+    hotas.curve = std::max(0.2, std::min(2.0, ini_dbl("hotas", "curve", hotas.curve)));
     if (const char *n = ini_get("hotas", "name")) hotas.name = n;
 #endif
     dsw0 = (uint8_t)ini_int("dips", "dsw0", 0x84);
@@ -1792,6 +1796,7 @@ void android_main(struct android_app *app)
             o.rom_dir = path_roms.c_str();
             o.pokey_volume = ini_int("sound", "pokey_volume", 100);
             o.speech_volume = ini_int("sound", "speech_volume", 100);
+            o.direct_sight = ini_int("input", "direct_sight", 1);
             logf("machine: %s, ROM revision %d, images in %s", sw_app_name(), o.rev, path_roms.c_str());
             if (sw_app_init(&o) == 0) machine = 1;
             else { logf("%s", sw_app_error()); notice = "NO ROMS"; }
@@ -1904,6 +1909,7 @@ int main(int argc, char **argv)
     o.turbo = turbo;
     o.pokey_volume = ini_int("sound", "pokey_volume", 100);
     o.speech_volume = ini_int("sound", "speech_volume", 100);
+    o.direct_sight = ini_int("input", "direct_sight", 1);
     logf("machine: %s, ROM revision %d, images in %s", sw_app_name(), o.rev, path_roms.c_str());
     if (sw_app_init(&o)) {
         logf("%s", sw_app_error());

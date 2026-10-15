@@ -86,6 +86,9 @@ typedef struct {
     const char *script;         /* a tests/scenarios script, or NULL: live input */
     int         turbo;          /* 1 = no pacing: sw_app_run advances a fixed slice */
     int         pokey_volume, speech_volume;    /* percent */
+    int         direct_sight;   /* 1: the sight goes straight to where the yoke points, not
+                                   eased there over a quarter of a second as the game does
+                                   (app.cpp; it writes the game's own sight position) */
 } sw_app_opts;
 
 typedef struct {
