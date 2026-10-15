@@ -689,7 +689,6 @@ int main(int argc, char **argv)
     o.turbo = turbo;
     o.pokey_volume = ini_int("sound", "pokey_volume", 100);
     o.speech_volume = ini_int("sound", "speech_volume", 100);
-    o.direct_sight = ini_int("input", "direct_sight", 0);
     logf("machine: %s, ROM revision %d, images in %s", sw_app_name(), o.rev, path_roms.c_str());
     if (sw_app_init(&o)) {
         logf("%s", sw_app_error());

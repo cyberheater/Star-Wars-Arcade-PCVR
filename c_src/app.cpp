@@ -307,25 +307,6 @@ static void live_inputs(void)
     SW.adc_in[1] = in.yaw;
 }
 
-/* The game eases its sight toward the yoke: at every picture RHPOS moves
- * the sight (RHS_POS) a quarter or three eighths of the way to where the pot
- * points (RHS_NML), so a move takes a quarter of a second to arrive.  With
- * direct_sight the sight is put where the pot points after every slice the
- * host runs: RHPOS then finds nothing left to do.  This changes the machine's
- * state, unlike anything else here, so it is the host's choice. */
-#define RHEOP   0x4866u     /* the pitch block */
-#define RHEOY   0x486Fu     /* the yaw block */
-#define RHS_NML 4u          /* the pot, normalised, -$7F..$7F */
-#define RHS_POS 5u          /* the sight, 16 bits, high byte first */
-static void sight_to_yoke(void)
-{
-    uint8_t *m = main_mem();
-    for (unsigned b : { RHEOP, RHEOY }) {
-        m[b + RHS_POS] = m[b + RHS_NML];
-        m[b + RHS_POS + 1] = 0x80;
-    }
-}
-
 void sw_app_run(double now_ms)
 {
     uint64_t now_cyc = port_cycles();
@@ -349,7 +330,6 @@ void sw_app_run(double now_ms)
     if (reset_request) { reset_request = 0; port_reset(); }
     port_run_until(target);
     audio_pump();
-    if (opt.direct_sight) sight_to_yoke();
 }
 
 void sw_app_get_stats(sw_app_stats *s)

@@ -205,9 +205,6 @@ axis_y=2
 ; 1 swaps up and down (pushed forward to climb)
 invert_pitch=0
 deadzone=0.04
-; the response: 1 is straight; below 1 small moves off the centre go further
-; (0.6 by default), above 1 they go less far
-curve=0.6
 ```
 
 A button set to 0 does nothing.
@@ -280,9 +277,6 @@ flight_reach=0.12
 [input]
 ; 1 swaps up and down
 invert_pitch=0
-; 1: the sight goes straight to where you point; 0: the arcade's own way,
-; easing toward it over about a quarter of a second
-direct_sight=1
 
 [vector]
 brightness=1.6
@@ -313,7 +307,7 @@ High scores are kept in `starwars.nv` in the same folder.
 | Up and down are the wrong way round | `invert_pitch=1` under `[input]` (`[hotas]` for the flight stick). |
 | The flight stick does nothing | Plug it in and start the game again. `sw_xr.log` names it on a line starting `[hotas]`; if there is none, Windows does not see it as a game controller (check *Set up USB game controllers* in Windows). |
 | Pressing A gives no credit | Press once and wait a second. The game takes a moment to accept a coin. |
-| The sight feels slightly behind your hand | `direct_sight=1` under `[input]` (the default) puts it where you point at once; with 0 it eases there as the arcade did. |
+| The sight feels slightly behind your hand | That is the original game: it eases the sight toward the yoke rather than jumping. |
 | Everything is too big to take in | Open the menu and lower SIZE. |
 | The build cannot write `sw_xr.exe` | The game is still running. Quit it and build again. |
 
