@@ -649,6 +649,7 @@ static struct {
 } xin;
 /* the PC's flight stick, as the menu reads it (all zero in the headset itself) */
 static struct {
+    int   present;                      /* a flight stick is plugged in: the other controllers are not read */
     int   menu, coin, centre;           /* held */
     float hat_x, hat_y;                 /* the hat: right and up positive */
 } hin;
@@ -1251,6 +1252,7 @@ static void hotas_read(void)
 {
     memset(&hin, 0, sizeof hin);
     if (!stick) return;
+    hin.present = 1;
     hin.menu = stick_button(hotas.menu);
     hin.coin = stick_button(hotas.coin);
     hin.centre = stick_button(hotas.centre);
@@ -1299,7 +1301,8 @@ static void menu_update(double now)
 #ifndef __ANDROID__
     hotas_read();
 #endif
-    const int menu_now = xin.menu || hin.menu;
+    /* with a flight stick plugged in, only the stick works the menu */
+    const int menu_now = hin.present ? hin.menu : xin.menu;
     if (menu_now && !menu_was) {
         slider_open = !slider_open;
         if (slider_open) menu_row = 0;
@@ -1311,12 +1314,12 @@ static void menu_update(double now)
     menu_was = menu_now;
     if (slider_open) {
         const float dz = 0.12f;
-        const float mx = xin.stick_x + hin.hat_x, my = xin.stick_y + hin.hat_y;
+        const float mx = hin.present ? hin.hat_x : xin.stick_x, my = hin.present ? hin.hat_y : xin.stick_y;
         const float sx = fabsf(mx) < dz ? 0.0f : std::max(-1.0f, std::min(1.0f, mx));
         const int step = my > 0.6f ? -1 : my < -0.6f ? 1 : 0;      /* up or down is one row a push */
         if (step && !stepped) menu_row = (menu_row + step + MENU_N) % MENU_N;
         stepped = step;
-        if (menu_row == MENU_QUIT) { if (xin.coin || hin.coin) g_quit = 1; } /* A or X, on the last row: leave */
+        if (menu_row == MENU_QUIT) { if (hin.present ? hin.coin : xin.coin) g_quit = 1; }   /* A or X, on the last row: leave */
         else if (!step) menu_at[menu_row] = std::max(-1.0f, std::min(1.0f, menu_at[menu_row] + sx * (float)dt / 1000.0f));
     }
     menu_apply();
@@ -1387,7 +1390,7 @@ void plat_input_poll(plat_inputs *in)
     }
     double x = yoke_x + key_x, y = yoke_y + key_y;
 
-    if (pad) {
+    if (pad && !hin.present) {                  /* a game controller, unless a flight stick is plugged in */
         const int dz = 4000;
         int ax = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX);
         int ay = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTY);
@@ -1421,8 +1424,9 @@ void plat_input_poll(plat_inputs *in)
     double x = 128.0, y = 128.0;
 #endif
     /* the Touch controllers: up is the sight up (the pot's high end), the
-     * other way from the mouse and the arrow keys, which are a yoke pushed */
-    {
+     * other way from the mouse and the arrow keys, which are a yoke pushed.
+     * Not read while a flight stick is plugged in: the stick is the yoke. */
+    if (!hin.present) {
         const float dz = 0.12f;
         float sx = fabsf(xin.stick_x) < dz ? 0.0f : xin.stick_x, sy = fabsf(xin.stick_y) < dz ? 0.0f : xin.stick_y;
 
@@ -1473,8 +1477,9 @@ void plat_input_poll(plat_inputs *in)
         if (xin.thumb_r > 0.5f) in->thumb_r = 1;
         if (xin.thumb_l > 0.5f) in->thumb_l = 1;
         if (xin.coin) in->coin_l = 1;
-        if (xin.centre || hin.centre) centre_request = yoke_rest_request = 1;
+        if (xin.centre) centre_request = yoke_rest_request = 1;
     }
+    if (hin.centre) centre_request = yoke_rest_request = 1;
 
     /* A coin closes its switch for a moment as it falls past, and the program
      * (S_DETCT) takes no coin from a switch that stays closed: about a quarter

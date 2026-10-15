@@ -170,8 +170,9 @@ controller comfortably and press it again.
 ### A flight stick (Thrustmaster T.Flight Hotas X)
 
 Plug the stick into the PC by USB before starting the game (or while it runs).
-It works alongside the Touch controllers: the stick is the yoke, and you can
-leave the controllers on the desk once the view is centred.
+While it is plugged in it is the only controller the game reads: the Touch
+controllers and any game pad are ignored, so they can stay on the desk. The
+headset still tracks your head, and the keyboard still works.
 
 | Action | On the T.Flight Hotas X |
 |---|---|
