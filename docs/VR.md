@@ -172,17 +172,19 @@ controller comfortably and press it again.
 Plug the stick into the PC by USB before starting the game (or while it runs).
 While it is plugged in it is the only controller the game reads: the Touch
 controllers and any game pad are ignored, so they can stay on the desk. The
-headset still tracks your head, and the keyboard still works.
+headset still tracks your head, and the keyboard still works. Where the stick
+rests when it is found is its centre. (The Quest app takes the stick too,
+plugged into the headset: see [Quest SWVR](https://github.com/cyberheater/Quest-SWVR).)
 
 | Action | On the T.Flight Hotas X |
 |---|---|
 | Move the sight | The stick: push forward to dive (sight down), pull back to climb (sight up), left and right |
 | Fire | Trigger (button 1), button 3 |
-| Thumb buttons (also fire) | Buttons 2 and 4 |
-| Insert coin | **SE** (button 9) |
+| Thumb button (also fires) | Button 4 |
+| Insert coin | Button 2 |
 | Menu (pauses the game) | **ST** (button 10) |
-| In the menu | The hat: up / down picks a slider, left / right moves it. On QUIT, SE leaves |
-| Centre the view, and take the stick as it rests now as its centre | Button 5 |
+| In the menu | The hat: up / down picks a slider, left / right moves it. On QUIT, button 2 leaves |
+| Centre the view, and take the stick as it rests now as its centre | Hat down |
 
 The button numbers are the ones printed on the stick. Any other USB joystick
 works the same way. If a button does something else, or nothing, press it once
@@ -193,12 +195,14 @@ it is pressed (`[hotas] button 7 pressed`). Then set it under `[hotas]` in
 ```ini
 [hotas]
 fire_right=1
-thumb_right=2
+thumb_right=4
 fire_left=3
-thumb_left=4
-centre=5
-coin=9
+thumb_left=0
+coin=2
 menu=10
+; a button that centres, as well as the hat pushed down (0: none)
+centre=0
+centre_hat_down=1
 ; the stick's axes, as Windows counts them from 1
 axis_x=1
 axis_y=2
