@@ -167,6 +167,47 @@ the flight stick. Press **B** to give it back to the right.
 the stick's rest position. If the sight drifts or sits off-centre, hold the
 controller comfortably and press it again.
 
+### A flight stick (Thrustmaster T.Flight Hotas X)
+
+Plug the stick into the PC by USB before starting the game (or while it runs).
+It works alongside the Touch controllers: the stick is the yoke, and you can
+leave the controllers on the desk once the view is centred.
+
+| Action | On the T.Flight Hotas X |
+|---|---|
+| Move the sight | The stick: push forward to dive (sight down), pull back to climb (sight up), left and right |
+| Fire | Trigger (button 1), button 3 |
+| Thumb buttons (also fire) | Buttons 2 and 4 |
+| Insert coin | **SE** (button 9) |
+| Menu (pauses the game) | **ST** (button 10) |
+| In the menu | The hat: up / down picks a slider, left / right moves it. On QUIT, SE leaves |
+| Centre the view | Button 5 |
+
+The button numbers are the ones printed on the stick. Any other USB joystick
+works the same way. If a button does something else, or nothing, press it once
+in the game and look in `sw_xr.log`: each button is named there the first time
+it is pressed (`[hotas] button 7 pressed`). Then set it under `[hotas]` in
+`sw_xr.ini`:
+
+```ini
+[hotas]
+fire_right=1
+thumb_right=2
+fire_left=3
+thumb_left=4
+centre=5
+coin=9
+menu=10
+; the stick's axes, as Windows counts them from 1
+axis_x=1
+axis_y=2
+; 1 swaps up and down (pushed forward to climb)
+invert_pitch=0
+deadzone=0.04
+```
+
+A button set to 0 does nothing.
+
 ### Keyboard (the PC window must have the focus)
 
 | Key | Action |
@@ -262,7 +303,8 @@ High scores are kept in `starwars.nv` in the same folder.
 | A missing-DLL error | `SDL2.dll`, `openxr_loader.dll` and `jsoncpp.dll` must be beside `sw_xr.exe`. Build again. |
 | No sound in the headset | The log lists the audio outputs and the one chosen. Put part of the right one's name in `[sound] device=`. |
 | The sight is off-centre or drifts | Hold the controller at rest and press B (or Y). |
-| Up and down are the wrong way round | `invert_pitch=1` under `[input]`. |
+| Up and down are the wrong way round | `invert_pitch=1` under `[input]` (`[hotas]` for the flight stick). |
+| The flight stick does nothing | Plug it in and start the game again. `sw_xr.log` names it on a line starting `[hotas]`; if there is none, Windows does not see it as a game controller (check *Set up USB game controllers* in Windows). |
 | Pressing A gives no credit | Press once and wait a second. The game takes a moment to accept a coin. |
 | The sight feels slightly behind your hand | That is the original game: it eases the sight toward the yoke rather than jumping. |
 | Everything is too big to take in | Open the menu and lower SIZE. |

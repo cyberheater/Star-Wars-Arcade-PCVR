@@ -33,7 +33,14 @@
  * B or Y centres the view and takes the handles' height now as the yoke's rest.
  * The thumbsticks move the yoke too.  F9 (or [vr] aim) steps through yoke,
  * point (the right controller alone: point it where the sight should go) and
- * stick (the thumbsticks only).  The mouse, the
+ * stick (the thumbsticks only).
+ *
+ * On the PC a flight stick on USB - a Thrustmaster T.Flight Hotas X, or any
+ * joystick SDL does not take for a game controller - is the yoke too: its
+ * stick moves the sight (back to climb), its buttons are the triggers, the
+ * thumb buttons, the coin, centring and the menu, and its hat works the menu.
+ * [hotas] in sw_xr.ini numbers the buttons from 1, as printed on the stick;
+ * sw_xr.log names each button the first time it is pressed.  The mouse, the
  * keys and a game controller work as in sw_sdl while the window has the focus.
  * PageUp / PageDown change unit_metres, - and = the picture's size to the
  * eye (view_scale), F10 moves the HUD panel.
@@ -640,6 +647,12 @@ static struct {
     float hand_roll[2];                 /* how far each leans over to the right, degrees */
     float hand_pos[2][3];               /* where each is, the cockpit's axes */
 } xin;
+/* the PC's flight stick, as the menu reads it (all zero in the headset itself) */
+static struct {
+    int   menu, coin, centre;           /* held */
+    float hat_x, hat_y;                 /* the hat: right and up positive */
+} hin;
+
 static int   yoke_rest_request = 1;     /* take the handles' height now as the yoke's rest */
 static float yoke_rest;
 static struct { float pitch, roll, pos[3]; } flight_rest;      /* and the stick as it is held now */
@@ -1118,6 +1131,32 @@ static int mickey_x, mickey_y;
 #ifndef __ANDROID__
 static SDL_GameController *pad;
 
+/* the flight stick: its buttons numbered from 1 as printed on it (0: none),
+ * its axes from 1 as Windows counts them ([hotas] in sw_xr.ini) */
+static SDL_Joystick *stick;
+static struct {
+    int fire_r = 1, thumb_r = 2, fire_l = 3, thumb_l = 4, centre = 5, coin = 9, menu = 10;
+    int axis_x = 1, axis_y = 2, invert = 0;
+    double deadzone = 0.04;
+    std::string name = "T.Flight";      /* a game controller with this in its name is taken as a flight stick */
+} hotas;
+
+static int is_flight_stick(int index)
+{
+    const char *n = SDL_JoystickNameForIndex(index);
+    if (!SDL_IsGameController(index)) return 1;
+    return n && !hotas.name.empty() && (strstr(n, hotas.name.c_str()) || strstr(n, "HOTAS") || strstr(n, "Hotas"));
+}
+
+static void stick_open(int index)
+{
+    if (stick || !is_flight_stick(index)) return;
+    stick = SDL_JoystickOpen(index);
+    if (stick)
+        logf("[hotas] %s: %d axes, %d buttons, %d hats", SDL_JoystickName(stick), SDL_JoystickNumAxes(stick),
+             SDL_JoystickNumButtons(stick), SDL_JoystickNumHats(stick));
+}
+
 static void set_capture(int on)
 {
     mouse_captured = on;
@@ -1169,10 +1208,16 @@ static void pump_events(void)
             }
             break;
         case SDL_CONTROLLERDEVICEADDED:
-            if (!pad) pad = SDL_GameControllerOpen(e.cdevice.which);
+            if (!pad && !is_flight_stick(e.cdevice.which)) pad = SDL_GameControllerOpen(e.cdevice.which);
             break;
         case SDL_CONTROLLERDEVICEREMOVED:
             if (pad && SDL_GameControllerGetAttached(pad) == SDL_FALSE) { SDL_GameControllerClose(pad); pad = nullptr; }
+            break;
+        case SDL_JOYDEVICEADDED:
+            stick_open(e.jdevice.which);
+            break;
+        case SDL_JOYDEVICEREMOVED:
+            if (stick && SDL_JoystickGetAttached(stick) == SDL_FALSE) { SDL_JoystickClose(stick); stick = nullptr; logf("[hotas] gone"); }
             break;
         case SDL_WINDOWEVENT:
             if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) set_capture(0);
@@ -1184,6 +1229,38 @@ static void pump_events(void)
 }
 
 #endif
+static int stick_button(int n) { return stick && n > 0 && SDL_JoystickGetButton(stick, n - 1); }
+
+/* an axis, -1 .. 1, with its dead zone */
+static double stick_axis(int n)
+{
+    if (!stick || n < 1) return 0.0;
+    double v = SDL_JoystickGetAxis(stick, n - 1) / 32768.0;
+    if (fabs(v) < hotas.deadzone) return 0.0;
+    return (v - (v > 0 ? hotas.deadzone : -hotas.deadzone)) / (1.0 - hotas.deadzone);
+}
+
+static void hotas_read(void)
+{
+    memset(&hin, 0, sizeof hin);
+    if (!stick) return;
+    hin.menu = stick_button(hotas.menu);
+    hin.coin = stick_button(hotas.coin);
+    hin.centre = stick_button(hotas.centre);
+    if (SDL_JoystickNumHats(stick) > 0) {
+        const Uint8 h = SDL_JoystickGetHat(stick, 0);
+        hin.hat_x = (h & SDL_HAT_RIGHT) ? 1.0f : (h & SDL_HAT_LEFT) ? -1.0f : 0.0f;
+        hin.hat_y = (h & SDL_HAT_UP) ? 1.0f : (h & SDL_HAT_DOWN) ? -1.0f : 0.0f;
+    }
+    /* each button named in the log the first time it is pressed, for [hotas] */
+    static uint64_t seen;
+    for (int b = 0; b < SDL_JoystickNumButtons(stick) && b < 64; b++)
+        if (SDL_JoystickGetButton(stick, b) && !(seen >> b & 1)) {
+            seen |= 1ull << b;
+            logf("[hotas] button %d pressed", b + 1);
+        }
+}
+
 /* What the menu's sliders stand for. */
 static void menu_apply(void)
 {
@@ -1205,7 +1282,11 @@ static void menu_update(double now)
     static double last;
     const double dt = last > 0.0 ? std::min(100.0, std::max(0.0, now - last)) : 0.0;
     last = now;
-    if (xin.menu && !menu_was) {
+#ifndef __ANDROID__
+    hotas_read();
+#endif
+    const int menu_now = xin.menu || hin.menu;
+    if (menu_now && !menu_was) {
         slider_open = !slider_open;
         if (slider_open) menu_row = 0;
         else {
@@ -1213,14 +1294,15 @@ static void menu_update(double now)
             resume_at = now + 250.0;
         }
     }
-    menu_was = xin.menu;
+    menu_was = menu_now;
     if (slider_open) {
         const float dz = 0.12f;
-        const float sx = fabsf(xin.stick_x) < dz ? 0.0f : xin.stick_x;
-        const int step = xin.stick_y > 0.6f ? -1 : xin.stick_y < -0.6f ? 1 : 0;      /* up or down is one row a push */
+        const float mx = xin.stick_x + hin.hat_x, my = xin.stick_y + hin.hat_y;
+        const float sx = fabsf(mx) < dz ? 0.0f : std::max(-1.0f, std::min(1.0f, mx));
+        const int step = my > 0.6f ? -1 : my < -0.6f ? 1 : 0;      /* up or down is one row a push */
         if (step && !stepped) menu_row = (menu_row + step + MENU_N) % MENU_N;
         stepped = step;
-        if (menu_row == MENU_QUIT) { if (xin.coin) g_quit = 1; }             /* A or X, on the last row: leave */
+        if (menu_row == MENU_QUIT) { if (xin.coin || hin.coin) g_quit = 1; } /* A or X, on the last row: leave */
         else if (!step) menu_at[menu_row] = std::max(-1.0f, std::min(1.0f, menu_at[menu_row] + sx * (float)dt / 1000.0f));
     }
     menu_apply();
@@ -1308,6 +1390,19 @@ void plat_input_poll(plat_inputs *in)
         if (SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_BACK)) in->coin_l = 1;
     }
 
+    /* the flight stick: pulled back is the sight up, as a pilot climbs */
+    if (stick) {
+        if (!slider_open) {
+            x += stick_axis(hotas.axis_x) * 127.0;
+            y += stick_axis(hotas.axis_y) * 127.0 * (hotas.invert ? -1.0 : 1.0);
+        }
+        if (stick_button(hotas.fire_r)) in->fire_r = 1;
+        if (stick_button(hotas.fire_l)) in->fire_l = 1;
+        if (stick_button(hotas.thumb_r)) in->thumb_r = 1;
+        if (stick_button(hotas.thumb_l)) in->thumb_l = 1;
+        if (hin.coin && !slider_open) in->coin_l = 1;
+    }
+
 #else
     double x = 128.0, y = 128.0;
 #endif
@@ -1364,7 +1459,7 @@ void plat_input_poll(plat_inputs *in)
         if (xin.thumb_r > 0.5f) in->thumb_r = 1;
         if (xin.thumb_l > 0.5f) in->thumb_l = 1;
         if (xin.coin) in->coin_l = 1;
-        if (xin.centre) centre_request = yoke_rest_request = 1;
+        if (xin.centre || hin.centre) centre_request = yoke_rest_request = 1;
     }
 
     /* A coin closes its switch for a moment as it falls past, and the program
@@ -1551,6 +1646,20 @@ int plat_nvram_write(const void *buf, unsigned len)
 
 static void settings_load(void)
 {
+#ifndef __ANDROID__
+    hotas.fire_r = ini_int("hotas", "fire_right", hotas.fire_r);
+    hotas.thumb_r = ini_int("hotas", "thumb_right", hotas.thumb_r);
+    hotas.fire_l = ini_int("hotas", "fire_left", hotas.fire_l);
+    hotas.thumb_l = ini_int("hotas", "thumb_left", hotas.thumb_l);
+    hotas.centre = ini_int("hotas", "centre", hotas.centre);
+    hotas.coin = ini_int("hotas", "coin", hotas.coin);
+    hotas.menu = ini_int("hotas", "menu", hotas.menu);
+    hotas.axis_x = ini_int("hotas", "axis_x", hotas.axis_x);
+    hotas.axis_y = ini_int("hotas", "axis_y", hotas.axis_y);
+    hotas.invert = ini_int("hotas", "invert_pitch", hotas.invert);
+    hotas.deadzone = ini_dbl("hotas", "deadzone", hotas.deadzone);
+    if (const char *n = ini_get("hotas", "name")) hotas.name = n;
+#endif
     dsw0 = (uint8_t)ini_int("dips", "dsw0", 0x84);
     dsw1 = (uint8_t)ini_int("dips", "dsw1", 0x02);
     brightness = (float)ini_dbl("vector", "brightness", 1.6);
@@ -1726,8 +1835,10 @@ int main(int argc, char **argv)
         logf("GL_VERSION: %s", (const char *)glGetString(GL_VERSION));
         if (gl_init()) return 1;
         set_capture(ini_int("input", "mouse_capture", flat ? 1 : 0));
-        for (int i = 0; i < SDL_NumJoysticks() && !pad; i++)
-            if (SDL_IsGameController(i)) pad = SDL_GameControllerOpen(i);
+        for (int i = 0; i < SDL_NumJoysticks(); i++) {
+            if (is_flight_stick(i)) stick_open(i);
+            else if (!pad) pad = SDL_GameControllerOpen(i);
+        }
         if (!flat && xr_init()) {
             const char *msg = "No headset was found through OpenXR.\n\nStart Quest Link, Air Link or Virtual Desktop "
                               "first, with the headset on; sw_xr.log says which runtimes were tried and what failed.\n\n"
