@@ -1136,7 +1136,9 @@ static SDL_GameController *pad;
  * its axes from 1 as Windows counts them ([hotas] in sw_xr.ini) */
 static SDL_Joystick *stick;
 static struct {
-    int fire_r = 1, thumb_r = 2, fire_l = 3, thumb_l = 4, centre = 5, coin = 9, menu = 10;
+    int fire_r = 1, thumb_r = 4, fire_l = 3, thumb_l = 0, centre = 0, coin = 2, menu = 10;
+    int centre_hat = 1;                 /* the hat pushed down centres (outside the menu) */
+    int trace = 0;                      /* [hotas] trace=1: the stick and the yoke in the log, ten times a second */
     int axis_x = 1, axis_y = 2, invert = 0;
     int rest_x, rest_y;                 /* the stick at rest, raw: taken at the start and on Centre */
     int lo_x = 0, hi_x = 0, lo_y = 0, hi_y = 0;   /* the furthest each way it has been, raw */
@@ -1267,19 +1269,19 @@ static void hotas_read(void)
     hin.present = 1;
     hin.menu = stick_button(hotas.menu);
     hin.coin = stick_button(hotas.coin);
-    hin.centre = stick_button(hotas.centre);
-    static int centre_was;
-    if (hin.centre && !centre_was) {            /* Centre: the stick as it is held now is its rest */
-        hotas.rest_x = hotas.axis_x > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_x - 1) : 0;
-        hotas.rest_y = hotas.axis_y > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_y - 1) : 0;
-        logf("[hotas] at rest: x %d, y %d", hotas.rest_x, hotas.rest_y);
-    }
-    centre_was = hin.centre;
     if (SDL_JoystickNumHats(stick) > 0) {
         const Uint8 h = SDL_JoystickGetHat(stick, 0);
         hin.hat_x = (h & SDL_HAT_RIGHT) ? 1.0f : (h & SDL_HAT_LEFT) ? -1.0f : 0.0f;
         hin.hat_y = (h & SDL_HAT_UP) ? 1.0f : (h & SDL_HAT_DOWN) ? -1.0f : 0.0f;
     }
+    hin.centre = stick_button(hotas.centre) || (hotas.centre_hat && !slider_open && hin.hat_y < 0);
+    static int centre_was;
+    if (hin.centre && !centre_was) {            /* Centre: the stick as it is held now is its rest */
+        hotas.rest_x = hotas.axis_x > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_x - 1) : 0;
+        hotas.rest_y = hotas.axis_y > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_y - 1) : 0;
+        logf("[hotas] centre: the stick at rest is x %d, y %d", hotas.rest_x, hotas.rest_y);
+    }
+    centre_was = hin.centre;
     /* each button named in the log the first time it is pressed, for [hotas] */
     static uint64_t seen;
     for (int b = 0; b < SDL_JoystickNumButtons(stick) && b < 64; b++)
@@ -1515,6 +1517,17 @@ void plat_input_poll(plat_inputs *in)
     in->yaw = (uint8_t)x;
     in->pitch = (uint8_t)y;
     in->quit = (uint8_t)g_quit;
+#ifndef __ANDROID__
+    static double trace_at;
+    if (stick && hotas.trace && now - trace_at >= 100.0) {
+        trace_at = now;
+        logf("[hotas] %.1f s  stick x %6d y %6d (rest %d %d, range x %d..%d y %d..%d)  yoke yaw %3d pitch %3d%s%s",
+             now / 1000.0, hotas.axis_x > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_x - 1) : 0,
+             hotas.axis_y > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_y - 1) : 0, hotas.rest_x, hotas.rest_y,
+             hotas.lo_x, hotas.hi_x, hotas.lo_y, hotas.hi_y, in->yaw, in->pitch,
+             hin.centre ? "  CENTRE" : "", slider_open ? "  menu" : "");
+    }
+#endif
 }
 
 /* ------------------------------------------------------------------ */
@@ -1683,6 +1696,8 @@ static void settings_load(void)
     hotas.fire_l = ini_int("hotas", "fire_left", hotas.fire_l);
     hotas.thumb_l = ini_int("hotas", "thumb_left", hotas.thumb_l);
     hotas.centre = ini_int("hotas", "centre", hotas.centre);
+    hotas.centre_hat = ini_int("hotas", "centre_hat_down", hotas.centre_hat);
+    hotas.trace = ini_int("hotas", "trace", hotas.trace) || getenv("SW_HOTAS_TRACE") != nullptr;
     hotas.coin = ini_int("hotas", "coin", hotas.coin);
     hotas.menu = ini_int("hotas", "menu", hotas.menu);
     hotas.axis_x = ini_int("hotas", "axis_x", hotas.axis_x);
