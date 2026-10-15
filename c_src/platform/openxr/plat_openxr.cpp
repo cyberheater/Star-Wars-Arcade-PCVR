@@ -1137,6 +1137,7 @@ static SDL_Joystick *stick;
 static struct {
     int fire_r = 1, thumb_r = 2, fire_l = 3, thumb_l = 4, centre = 5, coin = 9, menu = 10;
     int axis_x = 1, axis_y = 2, invert = 0;
+    int rest_x, rest_y;                 /* the stick at rest, raw: taken at the start and on Centre */
     double deadzone = 0.04;
     std::string name = "T.Flight";      /* a game controller with this in its name is taken as a flight stick */
 } hotas;
@@ -1152,6 +1153,11 @@ static void stick_open(int index)
 {
     if (stick || !is_flight_stick(index)) return;
     stick = SDL_JoystickOpen(index);
+    if (stick) {
+        SDL_JoystickUpdate();
+        hotas.rest_x = hotas.axis_x > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_x - 1) : 0;
+        hotas.rest_y = hotas.axis_y > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_y - 1) : 0;
+    }
     if (stick)
         logf("[hotas] %s: %d axes, %d buttons, %d hats", SDL_JoystickName(stick), SDL_JoystickNumAxes(stick),
              SDL_JoystickNumButtons(stick), SDL_JoystickNumHats(stick));
@@ -1231,11 +1237,12 @@ static void pump_events(void)
 #endif
 static int stick_button(int n) { return stick && n > 0 && SDL_JoystickGetButton(stick, n - 1); }
 
-/* an axis, -1 .. 1, with its dead zone */
-static double stick_axis(int n)
+/* an axis, -1 .. 1 from where it rests, with its dead zone */
+static double stick_axis(int n, int rest)
 {
     if (!stick || n < 1) return 0.0;
-    double v = SDL_JoystickGetAxis(stick, n - 1) / 32768.0;
+    const int raw = SDL_JoystickGetAxis(stick, n - 1);
+    double v = raw >= rest ? (raw - rest) / (double)std::max(1, 32767 - rest) : (raw - rest) / (double)std::max(1, 32768 + rest);
     if (fabs(v) < hotas.deadzone) return 0.0;
     return (v - (v > 0 ? hotas.deadzone : -hotas.deadzone)) / (1.0 - hotas.deadzone);
 }
@@ -1247,6 +1254,13 @@ static void hotas_read(void)
     hin.menu = stick_button(hotas.menu);
     hin.coin = stick_button(hotas.coin);
     hin.centre = stick_button(hotas.centre);
+    static int centre_was;
+    if (hin.centre && !centre_was) {            /* Centre: the stick as it is held now is its rest */
+        hotas.rest_x = hotas.axis_x > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_x - 1) : 0;
+        hotas.rest_y = hotas.axis_y > 0 ? SDL_JoystickGetAxis(stick, hotas.axis_y - 1) : 0;
+        logf("[hotas] at rest: x %d, y %d", hotas.rest_x, hotas.rest_y);
+    }
+    centre_was = hin.centre;
     if (SDL_JoystickNumHats(stick) > 0) {
         const Uint8 h = SDL_JoystickGetHat(stick, 0);
         hin.hat_x = (h & SDL_HAT_RIGHT) ? 1.0f : (h & SDL_HAT_LEFT) ? -1.0f : 0.0f;
@@ -1393,8 +1407,8 @@ void plat_input_poll(plat_inputs *in)
     /* the flight stick: pulled back is the sight up, as a pilot climbs */
     if (stick) {
         if (!slider_open) {
-            x += stick_axis(hotas.axis_x) * 127.0;
-            y += stick_axis(hotas.axis_y) * 127.0 * (hotas.invert ? -1.0 : 1.0);
+            x += stick_axis(hotas.axis_x, hotas.rest_x) * 127.0;
+            y += stick_axis(hotas.axis_y, hotas.rest_y) * 127.0 * (hotas.invert ? -1.0 : 1.0);
         }
         if (stick_button(hotas.fire_r)) in->fire_r = 1;
         if (stick_button(hotas.fire_l)) in->fire_l = 1;

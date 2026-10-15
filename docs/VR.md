@@ -181,7 +181,7 @@ leave the controllers on the desk once the view is centred.
 | Insert coin | **SE** (button 9) |
 | Menu (pauses the game) | **ST** (button 10) |
 | In the menu | The hat: up / down picks a slider, left / right moves it. On QUIT, SE leaves |
-| Centre the view | Button 5 |
+| Centre the view, and take the stick as it rests now as its centre | Button 5 |
 
 The button numbers are the ones printed on the stick. Any other USB joystick
 works the same way. If a button does something else, or nothing, press it once
